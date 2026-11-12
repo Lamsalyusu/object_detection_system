@@ -113,7 +113,13 @@ export default function GpuViewerPage() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
         <section className="relative rounded-2xl border border-white/10 bg-black/50 overflow-hidden min-h-[420px]">
           <canvas
-            
+            ref={canvasRef}
+            className="w-full h-full min-h-[420px] block touch-none cursor-grab"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            onWheel={handleWheel}
           />
           {message && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-8 text-center text-sm text-slate-300">
