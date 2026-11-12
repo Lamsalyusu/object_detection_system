@@ -19,3 +19,7 @@ node_modules/
 .next/
 out/
 *.tsbuildinfo
+htmlcov/
+htmlcov_core/
+logs/
+.coverage
