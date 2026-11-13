@@ -255,4 +255,103 @@ export class WebGpuPointCloudRenderer {
     this.device.queue.writeBuffer(this.colorBuffer, 0, data.colors);
     this.pointCount = data.positions.length / FLOATS_PER_POINT;
   }
+
+  get fps(): number {
+    return this.sampledFps;
+  }
+
+  get points(): number {
+    return this.pointCount;
+  }
+
+  orbit(deltaX: number, deltaY: number): void {
+    this.rotation += deltaX * 0.01;
+    this.distance = Math.min(20, Math.max(0.5, this.distance + deltaY * 0.01));
+  }
+
+  zoom(delta: number): void {
+    this.distance = Math.min(30, Math.max(0.4, this.distance + delta));
+  }
+
+  start(): void {
+    if (this.animationFrame !== null || this.disposed) {
+      return;
+    }
+    this.lastFrameAt = performance.now();
+    const frame = (now: number) => {
+      if (this.disposed) return;
+      this.resize();
+      this.render();
+      this.framesSinceSample += 1;
+      if (now - this.lastFrameAt >= 500) {
+        this.sampledFps =
+          (this.framesSinceSample * 1000) / (now - this.lastFrameAt);
+        this.framesSinceSample = 0;
+        this.lastFrameAt = now;
+      }
+      this.rotation += 0.002;
+      this.animationFrame = requestAnimationFrame(frame);
+    };
+    this.animationFrame = requestAnimationFrame(frame);
+  }
+
+  stop(): void {
+    if (this.animationFrame !== null) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.stop();
+    this.positionBuffer?.destroy?.();
+    this.colorBuffer?.destroy?.();
+    this.uniformBuffer?.destroy?.();
+    this.device?.destroy?.();
+  }
+
+  private resize(): void {
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const width = Math.max(1, Math.floor(this.canvas.clientWidth * ratio));
+    const height = Math.max(1, Math.floor(this.canvas.clientHeight * ratio));
+    if (this.canvas.width !== width || this.canvas.height !== height) {
+      this.canvas.width = width;
+      this.canvas.height = height;
+    }
+  }
+
+  private render(): void {
+    if (this.pointCount === 0) return;
+    const aspect = this.canvas.width / Math.max(1, this.canvas.height);
+    const projection = perspective(Math.PI / 3, aspect, 0.01, 100);
+    const eye: [number, number, number] = [
+      Math.sin(this.rotation) * this.distance,
+      this.distance * 0.35,
+      Math.cos(this.rotation) * this.distance,
+    ];
+    const view = lookAt(eye, [0, 0, 0], [0, 1, 0]);
+    const viewProjection = multiplyMatrices(projection, view);
+    this.device.queue.writeBuffer(this.uniformBuffer, 0, viewProjection);
+
+    const encoder = this.device.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: this.context.getCurrentTexture().createView(),
+          clearValue: { r: 0.03, g: 0.05, b: 0.09, a: 1 },
+          loadOp: "clear",
+          storeOp: "store",
+        },
+      ],
+    });
+    pass.setPipeline(this.pipeline);
+    pass.setBindGroup(0, this.bindGroup);
+    pass.setVertexBuffer(0, this.positionBuffer);
+    pass.setVertexBuffer(1, this.colorBuffer);
+    pass.draw(this.pointCount);
+    pass.end();
+    this.device.queue.submit([encoder.finish()]);
+  }
+
 }
