@@ -23,15 +23,27 @@ interface GeometryWasmExports {
   memory: WebAssembly.Memory;
   alloc_f32(length: number): number;
   dealloc_f32(pointer: number, length: number): void;
-  point_cloud_bounds(pointer: number, pointCount: number, outputPointer: number): number;
-  normalize_point_cloud(pointer: number, pointCount: number, targetRadius: number): number;
+  point_cloud_bounds(
+    pointer: number,
+    pointCount: number,
+    outputPointer: number,
+  ): number;
+  normalize_point_cloud(
+    pointer: number,
+    pointCount: number,
+    targetRadius: number,
+  ): number;
 }
 
 let wasmPromise: Promise<GeometryWasmExports | null> | null = null;
 
-export function computePointCloudBounds(positions: ArrayLike<number>): PointCloudBounds {
+export function computePointCloudBounds(
+  positions: ArrayLike<number>,
+): PointCloudBounds {
   if (positions.length === 0 || positions.length % 3 !== 0) {
-    throw new Error("positions must contain a non-zero multiple of three coordinates");
+    throw new Error(
+      "positions must contain a non-zero multiple of three coordinates",
+    );
   }
   let minX = Infinity;
   let minY = Infinity;
@@ -73,6 +85,33 @@ export function computePointCloudBounds(positions: ArrayLike<number>): PointClou
   };
 }
 
+export function normalizePointCloud(
+  positions: Float32Array,
+  targetRadius = 1,
+): Float32Array {
+  if (!Number.isFinite(targetRadius) || targetRadius <= 0) {
+    throw new Error("targetRadius must be a positive finite number");
+  }
+  const bounds = computePointCloudBounds(positions);
+  // bounds.radius is clamped to 1e-6, so a degenerate cloud (all points at
+  // ~one location) would be scaled by up to 1e6x. Match the Rust/WASM
+  // implementation and leave the scale at 1 in that case.
+  const halfDiagonal =
+    Math.hypot(
+      bounds.max[0] - bounds.min[0],
+      bounds.max[1] - bounds.min[1],
+      bounds.max[2] - bounds.min[2],
+    ) / 2;
+  const scale =
+    halfDiagonal > Number.EPSILON ? targetRadius / halfDiagonal : 1;
+  const normalized = new Float32Array(positions.length);
+  for (let index = 0; index < positions.length; index += 3) {
+    normalized[index] = (positions[index] - bounds.center[0]) * scale;
+    normalized[index + 1] = (positions[index + 1] - bounds.center[1]) * scale;
+    normalized[index + 2] = (positions[index + 2] - bounds.center[2]) * scale;
+  }
+  return normalized;
+}
 
 export function generatePointCloud(count: number, seed = 1): PointCloudData {
   if (!Number.isInteger(count) || count < 1 || count > 2_000_000) {
@@ -116,7 +155,8 @@ export async function loadGeometryWasm(
         if (!response.ok) return null;
         const bytes = await response.arrayBuffer();
         const { instance } = await WebAssembly.instantiate(bytes, {});
-        const exports = instance.exports as unknown as Partial<GeometryWasmExports>;
+        const exports =
+          instance.exports as unknown as Partial<GeometryWasmExports>;
         if (
           !exports.memory ||
           typeof exports.alloc_f32 !== "function" ||
@@ -145,7 +185,9 @@ export async function computePointCloudBoundsAccelerated(
   const inputPointer = wasm.alloc_f32(floatCount);
   const outputPointer = wasm.alloc_f32(6);
   try {
-    new Float32Array(wasm.memory.buffer, inputPointer, floatCount).set(positions);
+    new Float32Array(wasm.memory.buffer, inputPointer, floatCount).set(
+      positions,
+    );
     const ok = wasm.point_cloud_bounds(
       inputPointer,
       floatCount / 3,
