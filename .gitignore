@@ -1,25 +1,40 @@
+# Node & Next.js
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
 
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local artifacts
+reports/
+*.db
+smart_vision_ai.db
+
+# Environment
 .env
-.envrc
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+.env*.local
 
+# Legacy Python & Django
+.venv/
 __pycache__/
 *.pyc
 db.sqlite3
 *.db
 *.sqlite3
-
-# Node / Next.js
-node_modules/
-.next/
-out/
-*.tsbuildinfo
+.git-rewrite/
+.coverage
 htmlcov/
 htmlcov_core/
-logs/
-.coverage
+.mypy_cache/
+.ruff_cache/
+mutation-session.sqlite
+reports/
+OWNERSHIP_TRANSFER.md
